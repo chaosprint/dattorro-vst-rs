@@ -22,3 +22,9 @@ egui-baseview = {git = "https://github.com/BillyDM/egui-baseview", rev = "b7436c
 egui = "0.15"
 
 glicol_synth = { git = "https://github.com/chaosprint/glicol", rev = "3a9a6a85fc6d5321741d9806a1e0b080f2c12a37" }
+
+[profile.release]
+opt-level = 'z'     # Optimize for size.
+lto = true          # Enable Link Time Optimization
+codegen-units = 1   # Reduce number of codegen units to increase optimizations.
+panic = 'abort'     # Abort on panic
