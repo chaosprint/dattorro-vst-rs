@@ -8,7 +8,7 @@ set -e
 
 # Settings
 
-NAME="BaseviewTest"
+NAME="DattorroReverb"
 
 # Script
 
@@ -17,7 +17,7 @@ MOVE_TO="/Library/Audio/Plug-Ins/VST/$VST_NAME"
 TMP_DIR="tmp"
 
 cargo build --target x86_64-apple-darwin --release
-sudo zsh ./scripts/osx_vst_bundler.sh "$NAME" ./target/x86_64-apple-darwin/release/libegui_baseview_test_vst2.dylib
+sudo zsh ./scripts/osx_vst_bundler.sh "$NAME" ./target/x86_64-apple-darwin/release/libdattorro_vst_rs.dylib
 
 if [ -d "$MOVE_TO" ]; then
     rm -r "$MOVE_TO"

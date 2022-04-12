@@ -1,12 +1,12 @@
 [package]
-name = "egui_baseview_test_vst2"
+name = "dattorro_vst_rs"
 version = "0.1.0"
-authors = ["DGriffin <github@dgdigital.net>"]
+authors = ["chaosprint <chaosprint@gmail.com>"]
 edition = "2018"
 license = "MIT"
 
 [lib]
-name = "egui_baseview_test_vst2"
+name = "dattorro_vst_rs"
 crate-type = ["cdylib"]
 
 [dependencies]
@@ -20,3 +20,5 @@ vst = "0.2"
 rtrb = "0.2"
 egui-baseview = {git = "https://github.com/BillyDM/egui-baseview", rev = "b7436c02309347e49ffd4491bf31cdef6e759eb7" }
 egui = "0.15"
+
+glicol_synth = { git = "https://github.com/chaosprint/glicol", rev = "3a9a6a85fc6d5321741d9806a1e0b080f2c12a37" }

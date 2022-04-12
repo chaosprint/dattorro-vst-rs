@@ -16,14 +16,37 @@ use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
 use std::sync::Arc;
 
-const WINDOW_WIDTH: usize = 1024;
-const WINDOW_HEIGHT: usize = 512;
+use glicol_synth::{
+    Buffer, Input, Node, BoxedNodeSend, NodeData, Message, AudioContext,
+    oscillator::{SinOsc}, filter::{ OnePole, AllPassFilterGain}, effect::Balance,
+    operator::{Mul, Add}, delay::{DelayN, DelayMs}, Pass,
+    AudioContextBuilder, Sum
+};
 
+const WINDOW_WIDTH: usize = 500;
+const WINDOW_HEIGHT: usize = 300;
+
+
+// we have only struct definition in this lib
 struct TestPluginEditor {
     params: Arc<GainEffectParameters>,
     window_handle: Option<WindowHandle>,
     is_open: bool,
 }
+
+struct GainEffectParameters {
+    mix: AtomicFloat,
+}
+struct DattorroPlugin {
+    params: Arc<GainEffectParameters>,
+    editor: Option<TestPluginEditor>,
+    context: AudioContext<128>,
+    mix: f32,
+}
+
+// then we impl the default for the struct
+// it's fine to change it to ::new()
+
 
 impl Editor for TestPluginEditor {
     fn position(&self) -> (i32, i32) {
@@ -44,7 +67,7 @@ impl Editor for TestPluginEditor {
 
         let settings = Settings {
             window: WindowOpenOptions {
-                title: String::from("imgui-baseview demo window"),
+                title: String::from("Dattorro Reverb"),
                 size: Size::new(WINDOW_WIDTH as f64, WINDOW_HEIGHT as f64),
                 scale: WindowScalePolicy::SystemScaleFactor,
             },
@@ -57,21 +80,20 @@ impl Editor for TestPluginEditor {
             self.params.clone(),
             |_egui_ctx: &CtxRef, _queue: &mut Queue, _state: &mut Arc<GainEffectParameters>| {},
             |egui_ctx: &CtxRef, _queue: &mut Queue, state: &mut Arc<GainEffectParameters>| {
-                egui::Window::new("egui-baseview simple demo").show(&egui_ctx, |ui| {
-                    ui.heading("My Egui Application");
-                    let mut val = state.amplitude.get();
+                egui::Window::new("Dattorro Reverb").show(&egui_ctx, |ui| {
+                    ui.heading("Dattorro Reverb");
+                    let mut val = state.mix.get();
                     if ui
-                        .add(egui::Slider::new(&mut val, 0.0..=1.0).text("Gain"))
+                        .add(egui::Slider::new(&mut val, 0.0..=1.0).text("Mix"))
                         .changed()
                     {
-                        state.amplitude.set(val)
+                        state.mix.set(val)
                     }
                 });
             },
         );
 
         self.window_handle = Some(window_handle);
-
         true
     }
 
@@ -86,18 +108,146 @@ impl Editor for TestPluginEditor {
         }
     }
 }
-struct GainEffectParameters {
-    // The plugin's state consists of a single parameter: amplitude.
-    amplitude: AtomicFloat,
-}
-struct TestPlugin {
-    params: Arc<GainEffectParameters>,
-    editor: Option<TestPluginEditor>,
-}
 
-impl Default for TestPlugin {
+impl Default for DattorroPlugin {
     fn default() -> Self {
         let params = Arc::new(GainEffectParameters::default());
+        let mut context = AudioContextBuilder::<128>::new()
+        .sr(48000).channels(2).build(); // todo: sr can be different
+        
+
+        // we create the input manually, and tag it for later use
+        // you will see the tag usage soon
+        let input = context.add_mono_node( Pass{} );
+        context.tags.insert("input", input);
+
+        let wet1 = context.add_mono_node(OnePole::new(0.7));
+        let wet2 = context.add_mono_node(DelayMs::new().delay(50.));
+        let wet3 = context.add_mono_node(AllPassFilterGain::new().delay(4.771).gain(0.75));
+        let wet4 = context.add_mono_node(AllPassFilterGain::new().delay(3.595).gain(0.75));
+        let wet5 = context.add_mono_node(AllPassFilterGain::new().delay(12.72).gain(0.625));
+        let wet6 = context.add_mono_node(AllPassFilterGain::new().delay(9.307).gain(0.625));
+        let wet7 = context.add_mono_node(Add::new(0.0)); // fb here
+        let wet8 = context.add_mono_node(AllPassFilterGain::new().delay(100.0).gain(0.7)); // mod here
+
+        context.chain(vec![input, wet1, wet2, wet3, wet4, wet5, wet6, wet7, wet8]);
+
+        let mod1 = context.add_mono_node(SinOsc::new().freq(0.1));
+        let mod2 = context.add_mono_node(Mul::new(5.5));
+        let mod3 = context.add_mono_node(Add::new(29.5));
+        let _ = context.chain(vec![mod1, mod2, mod3, wet8]);
+
+        // we are going to take some halfway delay from line a
+        let aa = context.add_mono_node(DelayN::new(394));
+        context.connect(wet8, aa);
+        let ab = context.add_mono_node(DelayN::new(2800));
+        context.connect(aa, ab);
+        let ac = context.add_mono_node(DelayN::new(1204));
+        context.connect(ab, ac);
+
+        // just to try another syntax style
+        let (ba, _edges) = context.chain_boxed(vec![
+            DelayN::new(2000).to_boxed_nodedata(1),
+            OnePole::new(0.1).to_boxed_nodedata(1),
+            AllPassFilterGain::new().delay(7.596).gain(0.5).to_boxed_nodedata(1),
+        ]);
+
+        context.connect(ac, ba[0]);
+
+        let bb = context.add_mono_node(AllPassFilterGain::new().delay(35.78).gain(0.5));
+        context.connect(ba[2], bb);
+        let bc = context.add_mono_node(AllPassFilterGain::new().delay(100.).gain(0.5));
+        context.connect(bb, bc);
+        let _ = context.chain(vec![mod1, mod2, mod3, bc]); // modulate here
+
+        let ca = context.add_mono_node(DelayN::new(179));
+        context.connect(bc, ca);
+        let cb = context.add_mono_node(DelayN::new(2679));
+        context.connect(ca, cb);
+        let cc1 = context.add_mono_node(DelayN::new(3500));
+        let cc2 = context.add_mono_node(Mul::new(0.3));
+        context.chain(vec![cb, cc1, cc2]);
+        
+        let da1 = context.add_mono_node(AllPassFilterGain::new().delay(30.).gain(0.7));
+        let da2 = context.add_mono_node(DelayN::new(522));
+        context.chain(vec![cc2, da1, da2]);
+        
+        let db = context.add_mono_node(DelayN::new(2400));
+        context.connect(da2, db);
+        let dc = context.add_mono_node(DelayN::new(2400));
+        context.connect(db, dc);
+
+        let ea1 = context.add_mono_node(OnePole::new(0.1));
+        let ea2 = context.add_mono_node(AllPassFilterGain::new().delay(6.2).gain(0.7));
+        context.chain(vec![dc, ea1, ea2]);
+
+        let eb = context.add_mono_node(AllPassFilterGain::new().delay(34.92).gain(0.7));
+        context.connect(ea2, eb);
+
+        let fa1 = context.add_mono_node(AllPassFilterGain::new().delay(20.4).gain(0.7));
+        let fa2 = context.add_mono_node(DelayN::new(1578));
+        context.chain(vec![eb, fa1, fa2]);
+        let fb = context.add_mono_node(DelayN::new(2378));
+        context.connect(fa2, fb);
+
+        let fb1 = context.add_mono_node(DelayN::new(2500));
+        let fb2 = context.add_mono_node(Mul::new(0.3));
+        context.chain(vec![fb, fb1, fb2, wet7]); // back to feedback
+        
+
+        // start to take some signal out
+        let left_subtract = context.add_mono_node( Sum{});
+        context.connect(bb,left_subtract);
+        context.connect(db,left_subtract);
+        context.connect(ea2,left_subtract);
+        context.connect(fa2,left_subtract);
+
+        // turn these signal into -
+        let left_subtract2 = context.add_mono_node(Mul::new(-1.0));
+        context.connect(left_subtract,left_subtract2);
+        
+        let left = context.add_mono_node(Sum{});
+        context.connect(aa,left);
+        context.connect(ab,left);
+        context.connect(cb,left);
+        context.connect(left_subtract2,left);
+        let leftwet = context.add_mono_node(Mul::new(0.5));
+        context.tags.insert("mix1", leftwet);
+        let leftmix = context.add_mono_node(Sum{});
+        
+        // input dry * (1.-mix)
+        let leftdrymix = context.add_mono_node(Mul::new(0.5));
+        context.tags.insert("mixdiff1", leftdrymix);
+        context.chain(vec![input, leftdrymix, leftmix]);
+        context.chain(vec![left, leftwet, leftmix]);
+        
+        let right_subtract = context.add_mono_node(Sum{});
+        context.connect(eb,right_subtract);
+        context.connect(ab,right_subtract);
+        context.connect(ba[2],right_subtract);
+        context.connect(ca,right_subtract);
+        let right_subtract2 = context.add_mono_node(Mul::new(-1.0));
+        context.connect(right_subtract,right_subtract2);
+
+        let right = context.add_mono_node(Sum{});
+        context.connect(da2,right);
+        context.connect(db,right);
+        context.connect(fb,right);
+        context.connect(right_subtract2,right);
+        let rightwet = context.add_mono_node(Mul::new(0.5));
+        context.tags.insert("mix2", rightwet);
+        let rightmix = context.add_mono_node(Sum{}); // input dry * (1.-mix)
+
+        let rightdry = context.add_mono_node(Mul::new(0.5));
+        context.tags.insert("mixdiff2", rightdry);
+        context.chain(vec![input, rightdry, rightmix]);
+        context.chain(vec![right, rightwet,rightmix]);
+        
+        let balance = context.add_stereo_node(Balance::new());
+        context.connect(leftmix,balance);
+        context.connect(rightmix,balance);
+        context.connect(balance, context.destination);
+
         Self {
             params: params.clone(),
             editor: Some(TestPluginEditor {
@@ -105,6 +255,8 @@ impl Default for TestPlugin {
                 window_handle: None,
                 is_open: false,
             }),
+            context,
+            mix: 0.5
         }
     }
 }
@@ -112,19 +264,19 @@ impl Default for TestPlugin {
 impl Default for GainEffectParameters {
     fn default() -> GainEffectParameters {
         GainEffectParameters {
-            amplitude: AtomicFloat::new(0.5),
+            mix: AtomicFloat::new(0.5),
         }
     }
 }
 
-impl Plugin for TestPlugin {
+impl Plugin for DattorroPlugin {
     fn get_info(&self) -> Info {
         Info {
-            name: "Egui Gain Effect in Rust".to_string(),
-            vendor: "DGriffin".to_string(),
-            unique_id: 243123073,
+            name: "Dattorro Reverb".to_string(),
+            vendor: "chaosprint".to_string(),
+            unique_id: 19891010,
             version: 1,
-            inputs: 2,
+            inputs: 1, // channels, dattorro is mono in, stereo out
             outputs: 2,
             // This `parameters` bit is important; without it, none of our
             // parameters will be shown!
@@ -162,16 +314,40 @@ impl Plugin for TestPlugin {
 
     // Here is where the bulk of our audio processing code goes.
     fn process(&mut self, buffer: &mut AudioBuffer<f32>) {
-        // Read the amplitude from the parameter object
-        let amplitude = self.params.amplitude.get();
-        // First, we destructure our audio buffer into an arbitrary number of
-        // input and output buffers.  Usually, we'll be dealing with stereo (2 of each)
-        // but that might change.
-        for (input_buffer, output_buffer) in buffer.zip() {
-            // Next, we'll loop through each individual sample so we can apply the amplitude
-            // value to it.
-            for (input_sample, output_sample) in input_buffer.iter().zip(output_buffer) {
-                *output_sample = *input_sample * amplitude;
+        let mix = self.params.mix.get();
+
+        if mix != self.mix {
+            self.context.send_msg(self.context.tags["mix1"], Message::SetToNumber(0, mix));
+            self.context.send_msg(self.context.tags["mix2"], Message::SetToNumber(0, mix));
+            self.context.send_msg(self.context.tags["mixdiff1"], Message::SetToNumber(0, mix));
+            self.context.send_msg(self.context.tags["mixdiff2"], Message::SetToNumber(0, mix));
+            self.mix = mix;
+        }
+
+        let block_size: usize = buffer.samples();
+
+        let (input, mut outputs) = buffer.split();
+        let output_channels = outputs.len();
+        let process_times = block_size / 128;
+
+        for b in 0..process_times {
+            let inp =  &input.get(0)[b*128..(b+1)*128];
+
+            self.context.graph[
+                self.context.tags["input"]
+            ].buffers[0].copy_from_slice(inp);
+
+            // self.context.graph[
+            //     self.context.tags["input"]
+            // ].buffers[1].copy_from_slice(inp[1]);
+
+            let engine_out = self.context.next_block();
+
+            for chan_idx in 0..output_channels {
+                let buff = outputs.get_mut(chan_idx);
+                for n in 0..128 {
+                    buff[b*128+n] = engine_out[chan_idx][n];
+                }
             }
         }
     }
@@ -187,7 +363,7 @@ impl PluginParameters for GainEffectParameters {
     // the `get_parameter` function reads the value of a parameter.
     fn get_parameter(&self, index: i32) -> f32 {
         match index {
-            0 => self.amplitude.get(),
+            0 => self.mix.get(),
             _ => 0.0,
         }
     }
@@ -196,7 +372,7 @@ impl PluginParameters for GainEffectParameters {
     fn set_parameter(&self, index: i32, val: f32) {
         #[allow(clippy::single_match)]
         match index {
-            0 => self.amplitude.set(val),
+            0 => self.mix.set(val),
             _ => (),
         }
     }
@@ -205,7 +381,7 @@ impl PluginParameters for GainEffectParameters {
     // format it into a string that makes the most since.
     fn get_parameter_text(&self, index: i32) -> String {
         match index {
-            0 => format!("{:.2}", (self.amplitude.get() - 0.5) * 2f32),
+            0 => format!("{:.2}", (self.mix.get() - 0.5) * 2f32),
             _ => "".to_string(),
         }
     }
@@ -213,13 +389,16 @@ impl PluginParameters for GainEffectParameters {
     // This shows the control's name.
     fn get_parameter_name(&self, index: i32) -> String {
         match index {
-            0 => "Amplitude",
+            0 => "Mix",
             _ => "",
         }
         .to_string()
     }
 }
 
+
+// boilerplate code, identical for all vst plugins
+// just skip to the last line
 struct VstParent(*mut ::std::ffi::c_void);
 
 #[cfg(target_os = "macos")]
@@ -258,4 +437,5 @@ unsafe impl HasRawWindowHandle for VstParent {
     }
 }
 
-plugin_main!(TestPlugin);
+// the last thing you need to change is the name
+plugin_main!(DattorroPlugin);
