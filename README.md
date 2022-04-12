@@ -2,9 +2,15 @@
 
 This repository contains the source code to build a Dattorro's Plate Reverb effect VST plugin that can be used in different DAWs such as Ableton Live, Bitwig, etc.
 
+This is also an example of using `glicol_synth` with other Rust audio libraries.
+
 Here's a video demo:
 
 https://youtu.be/DLFO4dXzKsg
+
+![Demo](./demo.png)
+
+# Background
 
 The GUI frontend is developed with [egui](https://github.com/emilk/egui).
 
@@ -19,8 +25,6 @@ Also check the projects behind the template if you are interested:
 https://github.com/BillyDM/egui-baseview
 
 https://github.com/RustAudio/vst-rs
-
-![Demo](./demo.png)
 
 > Currently, this plugin has only been tested on Apple computers (both M1 or Inter models).
 
