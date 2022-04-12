@@ -34,9 +34,14 @@ You can download it directly for your music making, or you can build from the so
 
 > Currently, this plugin has only been tested on Apple computers (both M1 or Inter models).
 
+Update:
+
+> It also works on Windows, although the GUI does not have hi-res.
+
 ## Download
 
 See the latest release page:
+
 https://github.com/chaosprint/dattorro-vst-rs/releases
 
 ## Build from source code
@@ -51,11 +56,16 @@ Make sure you can run `cargo -V` and `rustup -V` from your terminal.
 
 ### Step 2
 
-Run the following commands from your Mac's terminal:
+Run the following commands from your Mac's Terminal:
 
 - `git clone https://github.com/chaosprint/dattorro-vst-rs.git`
 - `cd dattorro-vst-rs`
 - `sudo zsh scripts/build.sh`
+
+On Windows:
+
+- Run `cargo build --release` on Terminal
+- Copy `target/release/dattorro_vst_rs.dll` to your VST plugin folder
 
 If everything goes well, then you are ready to go.
 
@@ -66,9 +76,10 @@ Open your DAW.
 > If you use an M1 mac, make sure you run the DAW with Rosetta.
 
 Then try to find the VST plugin. For Ableton Live, here's a guide:
+
 https://help.ableton.com/hc/en-us/articles/209068929-Using-AU-and-VST-plug-ins-on-Mac
 
-> If there's some security warning such as cannot open, go to your Mac's `System Preferences` -> `Security & Privacy` -> click `Open anyway`.
+> If there's some security warning such as `cannot open`, go to your Mac's `System Preferences`, `Security & Privacy`, and then click `Open anyway`.
 
 Then, you can just use the plugin!
 
