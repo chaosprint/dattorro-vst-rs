@@ -23,8 +23,8 @@ use glicol_synth::{
     AudioContextBuilder, Sum
 };
 
-const WINDOW_WIDTH: usize = 500;
-const WINDOW_HEIGHT: usize = 300;
+const WINDOW_WIDTH: usize = 300;
+const WINDOW_HEIGHT: usize = 200;
 
 
 // we have only struct definition in this lib
@@ -35,18 +35,20 @@ struct TestPluginEditor {
 }
 
 struct GainEffectParameters {
+    bandwidth: AtomicFloat,
+    damping: AtomicFloat,
+    decay: AtomicFloat,
     mix: AtomicFloat,
 }
 struct DattorroPlugin {
     params: Arc<GainEffectParameters>,
     editor: Option<TestPluginEditor>,
     context: AudioContext<128>,
+    bandwidth: f32, // for checking the diff
+    damping: f32,
+    decay: f32,
     mix: f32,
 }
-
-// then we impl the default for the struct
-// it's fine to change it to ::new()
-
 
 impl Editor for TestPluginEditor {
     fn position(&self) -> (i32, i32) {
@@ -81,13 +83,34 @@ impl Editor for TestPluginEditor {
             |_egui_ctx: &CtxRef, _queue: &mut Queue, _state: &mut Arc<GainEffectParameters>| {},
             |egui_ctx: &CtxRef, _queue: &mut Queue, state: &mut Arc<GainEffectParameters>| {
                 egui::Window::new("Dattorro Reverb").show(&egui_ctx, |ui| {
-                    ui.heading("Dattorro Reverb");
-                    let mut val = state.mix.get();
+                    ui.heading("Made with egui and glicol_synth");
+                    let mut bandwidth = state.bandwidth.get();
+                    let mut damping = state.damping.get();
+                    let mut decay = state.decay.get();
+                    let mut mix = state.mix.get();
                     if ui
-                        .add(egui::Slider::new(&mut val, 0.0..=1.0).text("Mix"))
+                        .add(egui::Slider::new(&mut bandwidth, 0.0..=1.0).text("bandwidth"))
                         .changed()
                     {
-                        state.mix.set(val)
+                        state.bandwidth.set(bandwidth)
+                    }
+                    if ui
+                        .add(egui::Slider::new(&mut damping, 0.0..=1.0).text("damping"))
+                        .changed()
+                    {
+                        state.damping.set(damping)
+                    }
+                    if ui
+                        .add(egui::Slider::new(&mut decay, 0.0..=0.9999).text("decay"))
+                        .changed()
+                    {
+                        state.decay.set(decay)
+                    }
+                    if ui
+                        .add(egui::Slider::new(&mut mix, 0.0..=1.0).text("mix"))
+                        .changed()
+                    {
+                        state.mix.set(mix)
                     }
                 });
             },
@@ -122,6 +145,7 @@ impl Default for DattorroPlugin {
         context.tags.insert("input", input);
 
         let wet1 = context.add_mono_node(OnePole::new(0.7));
+        context.tags.insert("inputlpf", wet1);
         let wet2 = context.add_mono_node(DelayMs::new().delay(50.));
         let wet3 = context.add_mono_node(AllPassFilterGain::new().delay(4.771).gain(0.75));
         let wet4 = context.add_mono_node(AllPassFilterGain::new().delay(3.595).gain(0.75));
@@ -145,17 +169,17 @@ impl Default for DattorroPlugin {
         let ac = context.add_mono_node(DelayN::new(1204));
         context.connect(ab, ac);
 
-        // just to try another syntax style
-        let (ba, _edges) = context.chain_boxed(vec![
-            DelayN::new(2000).to_boxed_nodedata(1),
-            OnePole::new(0.1).to_boxed_nodedata(1),
-            AllPassFilterGain::new().delay(7.596).gain(0.5).to_boxed_nodedata(1),
-        ]);
 
-        context.connect(ac, ba[0]);
+        let ba1 = context.add_mono_node( DelayN::new(2000));
+        context.connect(ac, ba1);
+        let ba2 = context.add_mono_node( OnePole::new(0.1));
+        context.tags.insert("tanklpf1", ba2);
+        context.connect(ba1, ba2);
+        let ba3 = context.add_mono_node( AllPassFilterGain::new().delay(7.596).gain(0.5) );
+        context.connect(ba2, ba3);
 
         let bb = context.add_mono_node(AllPassFilterGain::new().delay(35.78).gain(0.5));
-        context.connect(ba[2], bb);
+        context.connect(ba3, bb);
         let bc = context.add_mono_node(AllPassFilterGain::new().delay(100.).gain(0.5));
         context.connect(bb, bc);
         let _ = context.chain(vec![mod1, mod2, mod3, bc]); // modulate here
@@ -165,7 +189,8 @@ impl Default for DattorroPlugin {
         let cb = context.add_mono_node(DelayN::new(2679));
         context.connect(ca, cb);
         let cc1 = context.add_mono_node(DelayN::new(3500));
-        let cc2 = context.add_mono_node(Mul::new(0.3));
+        let cc2 = context.add_mono_node(Mul::new(0.3)); // another g5
+        context.tags.insert("fbrate2", cc2);
         context.chain(vec![cb, cc1, cc2]);
         
         let da1 = context.add_mono_node(AllPassFilterGain::new().delay(30.).gain(0.7));
@@ -178,6 +203,7 @@ impl Default for DattorroPlugin {
         context.connect(db, dc);
 
         let ea1 = context.add_mono_node(OnePole::new(0.1));
+        context.tags.insert("tanklpf2", ea1);
         let ea2 = context.add_mono_node(AllPassFilterGain::new().delay(6.2).gain(0.7));
         context.chain(vec![dc, ea1, ea2]);
 
@@ -192,6 +218,7 @@ impl Default for DattorroPlugin {
 
         let fb1 = context.add_mono_node(DelayN::new(2500));
         let fb2 = context.add_mono_node(Mul::new(0.3));
+        context.tags.insert("fbrate1", fb2);
         context.chain(vec![fb, fb1, fb2, wet7]); // back to feedback
         
 
@@ -211,12 +238,12 @@ impl Default for DattorroPlugin {
         context.connect(ab,left);
         context.connect(cb,left);
         context.connect(left_subtract2,left);
-        let leftwet = context.add_mono_node(Mul::new(0.5));
+        let leftwet = context.add_mono_node(Mul::new(0.1));
         context.tags.insert("mix1", leftwet);
         let leftmix = context.add_mono_node(Sum{});
         
         // input dry * (1.-mix)
-        let leftdrymix = context.add_mono_node(Mul::new(0.5));
+        let leftdrymix = context.add_mono_node(Mul::new(0.9));
         context.tags.insert("mixdiff1", leftdrymix);
         context.chain(vec![input, leftdrymix, leftmix]);
         context.chain(vec![left, leftwet, leftmix]);
@@ -224,7 +251,7 @@ impl Default for DattorroPlugin {
         let right_subtract = context.add_mono_node(Sum{});
         context.connect(eb,right_subtract);
         context.connect(ab,right_subtract);
-        context.connect(ba[2],right_subtract);
+        context.connect(ba2,right_subtract);
         context.connect(ca,right_subtract);
         let right_subtract2 = context.add_mono_node(Mul::new(-1.0));
         context.connect(right_subtract,right_subtract2);
@@ -234,11 +261,11 @@ impl Default for DattorroPlugin {
         context.connect(db,right);
         context.connect(fb,right);
         context.connect(right_subtract2,right);
-        let rightwet = context.add_mono_node(Mul::new(0.5));
+        let rightwet = context.add_mono_node(Mul::new(0.1));
         context.tags.insert("mix2", rightwet);
         let rightmix = context.add_mono_node(Sum{}); // input dry * (1.-mix)
 
-        let rightdry = context.add_mono_node(Mul::new(0.5));
+        let rightdry = context.add_mono_node(Mul::new(0.9));
         context.tags.insert("mixdiff2", rightdry);
         context.chain(vec![input, rightdry, rightmix]);
         context.chain(vec![right, rightwet,rightmix]);
@@ -256,7 +283,10 @@ impl Default for DattorroPlugin {
                 is_open: false,
             }),
             context,
-            mix: 0.5
+            bandwidth: 0.7,
+            damping: 0.1,
+            decay: 0.3,
+            mix: 0.1
         }
     }
 }
@@ -264,7 +294,10 @@ impl Default for DattorroPlugin {
 impl Default for GainEffectParameters {
     fn default() -> GainEffectParameters {
         GainEffectParameters {
-            mix: AtomicFloat::new(0.5),
+            bandwidth: AtomicFloat::new(0.7),
+            damping: AtomicFloat::new(0.1),
+            decay: AtomicFloat::new(0.3),
+            mix: AtomicFloat::new(0.1),
         }
     }
 }
@@ -280,7 +313,7 @@ impl Plugin for DattorroPlugin {
             outputs: 2,
             // This `parameters` bit is important; without it, none of our
             // parameters will be shown!
-            parameters: 1,
+            parameters: 4,
             category: Category::Effect,
             ..Default::default()
         }
@@ -314,13 +347,34 @@ impl Plugin for DattorroPlugin {
 
     // Here is where the bulk of our audio processing code goes.
     fn process(&mut self, buffer: &mut AudioBuffer<f32>) {
+
+        let bandwidth = self.params.bandwidth.get();
+        let damping = self.params.damping.get();
+        let decay = self.params.decay.get();
         let mix = self.params.mix.get();
+
+        if bandwidth != self.bandwidth {
+            self.context.send_msg(self.context.tags["inputlpf"], Message::SetToNumber(0, bandwidth));
+            self.bandwidth = bandwidth;
+        }
+
+        if damping != self.damping {
+            self.context.send_msg(self.context.tags["tanklpf1"], Message::SetToNumber(0, damping));
+            self.context.send_msg(self.context.tags["tanklpf2"], Message::SetToNumber(0, damping));
+            self.damping = damping;
+        }
+
+        if decay != self.decay {
+            self.context.send_msg(self.context.tags["fbrate1"], Message::SetToNumber(0, decay));
+            self.context.send_msg(self.context.tags["fbrate2"], Message::SetToNumber(0, decay));
+            self.decay = decay;
+        }
 
         if mix != self.mix {
             self.context.send_msg(self.context.tags["mix1"], Message::SetToNumber(0, mix));
             self.context.send_msg(self.context.tags["mix2"], Message::SetToNumber(0, mix));
-            self.context.send_msg(self.context.tags["mixdiff1"], Message::SetToNumber(0, mix));
-            self.context.send_msg(self.context.tags["mixdiff2"], Message::SetToNumber(0, mix));
+            self.context.send_msg(self.context.tags["mixdiff1"], Message::SetToNumber(0, 1.-mix));
+            self.context.send_msg(self.context.tags["mixdiff2"], Message::SetToNumber(0, 1.-mix));
             self.mix = mix;
         }
 
@@ -363,7 +417,10 @@ impl PluginParameters for GainEffectParameters {
     // the `get_parameter` function reads the value of a parameter.
     fn get_parameter(&self, index: i32) -> f32 {
         match index {
-            0 => self.mix.get(),
+            0 => self.bandwidth.get(),
+            1 => self.damping.get(),
+            2 => self.decay.get(),
+            3 => self.mix.get(),
             _ => 0.0,
         }
     }
@@ -372,28 +429,33 @@ impl PluginParameters for GainEffectParameters {
     fn set_parameter(&self, index: i32, val: f32) {
         #[allow(clippy::single_match)]
         match index {
-            0 => self.mix.set(val),
+            0 => self.bandwidth.set(val),
+            1 => self.damping.set(val),
+            2 => self.decay.set(val),
+            3 => self.mix.set(val),
             _ => (),
         }
     }
 
-    // This is what will display underneath our control.  We can
-    // format it into a string that makes the most since.
-    fn get_parameter_text(&self, index: i32) -> String {
-        match index {
-            0 => format!("{:.2}", (self.mix.get() - 0.5) * 2f32),
-            _ => "".to_string(),
-        }
-    }
+    // we avoid default controller for now
+
+    // // This is what will display underneath our control.  We can
+    // // format it into a string that makes the most since.
+    // fn get_parameter_text(&self, index: i32) -> String {
+    //     match index {
+    //         0 => format!("{:.2}", (self.mix.get() - 0.5) * 2f32),
+    //         _ => "".to_string(),
+    //     }
+    // }
 
     // This shows the control's name.
-    fn get_parameter_name(&self, index: i32) -> String {
-        match index {
-            0 => "Mix",
-            _ => "",
-        }
-        .to_string()
-    }
+    // fn get_parameter_name(&self, index: i32) -> String {
+    //     match index {
+    //         0 => "Mix",
+    //         _ => "",
+    //     }
+    //     .to_string()
+    // }
 }
 
 
