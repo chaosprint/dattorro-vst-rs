@@ -437,25 +437,30 @@ impl PluginParameters for EffectParameters {
         }
     }
 
-    // we avoid default controller for now
-
-    // // This is what will display underneath our control.  We can
-    // // format it into a string that makes the most since.
-    // fn get_parameter_text(&self, index: i32) -> String {
-    //     match index {
-    //         0 => format!("{:.2}", (self.mix.get() - 0.5) * 2f32),
-    //         _ => "".to_string(),
-    //     }
-    // }
+    // This is what will display underneath our control.
+    // For example, in Ableton, the square gui where you drap the fx
+    // format it into a string that makes the most sense.
+    fn get_parameter_text(&self, index: i32) -> String {
+        match index {
+            0 => format!("{:.2}", self.bandwidth.get()),
+            1 => format!("{:.2}", self.damping.get()),
+            2 => format!("{:.2}", self.decay.get()),
+            3 => format!("{:.2}", self.mix.get()),
+            _ => "".to_string(),
+        }
+    }
 
     // This shows the control's name.
-    // fn get_parameter_name(&self, index: i32) -> String {
-    //     match index {
-    //         0 => "Mix",
-    //         _ => "",
-    //     }
-    //     .to_string()
-    // }
+    fn get_parameter_name(&self, index: i32) -> String {
+        match index {
+            0 => "bandwidth",
+            1 => "damping",
+            2 => "decay",
+            3 => "mix",
+            _ => "",
+        }
+        .to_string()
+    }
 }
 
 
