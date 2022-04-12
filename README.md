@@ -26,7 +26,7 @@ https://github.com/BillyDM/egui-baseview
 
 https://github.com/RustAudio/vst-rs
 
-Thanks for all the contributors in the lists above. Without them, developing VST in Rust would not be so straightforward.
+Thanks for all the contributors in the relevant projects. Without them, developing VST in Rust would not be so straightforward.
 
 # Usage
 
