@@ -1,8 +1,8 @@
-# Introduction
+# What is this?
 
-This repository contains the source code to build a Dattorro's Plate Reverb effect VST plugin that can be used in different DAWs such as Ableton Live, Bitwig, etc.
+This repository contains the source code to build a Dattorro's plate reverb effect VST plugin that can be used in different DAWs such as Ableton Live, Bitwig, etc.
 
-This is also an example of using `glicol_synth` with other Rust audio libraries.
+Dattorro's plate reverb is one of the most popular audio effects with its structure [open to the public](https://ccrma.stanford.edu/~dattorro/EffectDesignPart1.pdf). Yet it would be quite challenging to build it from ground up without a good framework. Thus, this repo is also an example of using `glicol_synth` with other Rust audio libraries.
 
 Here's a video demo:
 
@@ -10,7 +10,7 @@ https://youtu.be/DLFO4dXzKsg
 
 ![Demo](./demo.png)
 
-# Background
+# Some resources
 
 The GUI frontend is developed with [egui](https://github.com/emilk/egui).
 
