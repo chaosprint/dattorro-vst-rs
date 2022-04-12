@@ -28,21 +28,21 @@ const WINDOW_HEIGHT: usize = 200;
 
 
 // we have only struct definition in this lib
-struct TestPluginEditor {
-    params: Arc<GainEffectParameters>,
+struct PluginEditor {
+    params: Arc<EffectParameters>,
     window_handle: Option<WindowHandle>,
     is_open: bool,
 }
 
-struct GainEffectParameters {
+struct EffectParameters {
     bandwidth: AtomicFloat,
     damping: AtomicFloat,
     decay: AtomicFloat,
     mix: AtomicFloat,
 }
 struct DattorroPlugin {
-    params: Arc<GainEffectParameters>,
-    editor: Option<TestPluginEditor>,
+    params: Arc<EffectParameters>,
+    editor: Option<PluginEditor>,
     context: AudioContext<128>,
     bandwidth: f32, // for checking the diff
     damping: f32,
@@ -50,7 +50,7 @@ struct DattorroPlugin {
     mix: f32,
 }
 
-impl Editor for TestPluginEditor {
+impl Editor for PluginEditor {
     fn position(&self) -> (i32, i32) {
         (0, 0)
     }
@@ -80,8 +80,8 @@ impl Editor for TestPluginEditor {
             &VstParent(parent),
             settings,
             self.params.clone(),
-            |_egui_ctx: &CtxRef, _queue: &mut Queue, _state: &mut Arc<GainEffectParameters>| {},
-            |egui_ctx: &CtxRef, _queue: &mut Queue, state: &mut Arc<GainEffectParameters>| {
+            |_egui_ctx: &CtxRef, _queue: &mut Queue, _state: &mut Arc<EffectParameters>| {},
+            |egui_ctx: &CtxRef, _queue: &mut Queue, state: &mut Arc<EffectParameters>| {
                 egui::Window::new("Dattorro Reverb").show(&egui_ctx, |ui| {
                     ui.heading("Made with egui and glicol_synth");
                     let mut bandwidth = state.bandwidth.get();
@@ -134,7 +134,7 @@ impl Editor for TestPluginEditor {
 
 impl Default for DattorroPlugin {
     fn default() -> Self {
-        let params = Arc::new(GainEffectParameters::default());
+        let params = Arc::new(EffectParameters::default());
         let mut context = AudioContextBuilder::<128>::new()
         .sr(48000).channels(2).build(); // todo: sr can be different
         
@@ -277,7 +277,7 @@ impl Default for DattorroPlugin {
 
         Self {
             params: params.clone(),
-            editor: Some(TestPluginEditor {
+            editor: Some(PluginEditor {
                 params: params.clone(),
                 window_handle: None,
                 is_open: false,
@@ -291,9 +291,9 @@ impl Default for DattorroPlugin {
     }
 }
 
-impl Default for GainEffectParameters {
-    fn default() -> GainEffectParameters {
-        GainEffectParameters {
+impl Default for EffectParameters {
+    fn default() -> EffectParameters {
+        EffectParameters {
             bandwidth: AtomicFloat::new(0.7),
             damping: AtomicFloat::new(0.1),
             decay: AtomicFloat::new(0.3),
@@ -413,7 +413,7 @@ impl Plugin for DattorroPlugin {
     }
 }
 
-impl PluginParameters for GainEffectParameters {
+impl PluginParameters for EffectParameters {
     // the `get_parameter` function reads the value of a parameter.
     fn get_parameter(&self, index: i32) -> f32 {
         match index {
