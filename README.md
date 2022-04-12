@@ -31,7 +31,7 @@ You can download it directly for your music making, or you can build from the so
 ## Download
 
 See the latest release page:
-https://github.com/glicol/dattorro-vst-rs/releases
+https://github.com/chaosprint/dattorro-vst-rs/releases
 
 ## Build from source code
 
@@ -47,7 +47,7 @@ Make sure you can run `cargo -V` and `rustup -V` from your terminal.
 
 Run the following commands from your Mac's terminal:
 
-- `git clone https://github.com/glicol/dattorro-vst-rs.git`
+- `git clone https://github.com/chaosprint/dattorro-vst-rs.git`
 - `cd dattorro-vst-rs`
 - `sudo zsh scripts/build.sh`
 
