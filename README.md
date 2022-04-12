@@ -26,11 +26,13 @@ https://github.com/BillyDM/egui-baseview
 
 https://github.com/RustAudio/vst-rs
 
-> Currently, this plugin has only been tested on Apple computers (both M1 or Inter models).
+Thanks for all the contributors in the lists above. Without them, developing VST in Rust would not be so straightforward.
 
 # Usage
 
 You can download it directly for your music making, or you can build from the source code with some requirement.
+
+> Currently, this plugin has only been tested on Apple computers (both M1 or Inter models).
 
 ## Download
 
