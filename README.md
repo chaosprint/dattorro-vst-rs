@@ -2,6 +2,10 @@
 
 This repository contains the source code to build a Dattorro's Plate Reverb effect VST plugin that can be used in different DAWs such as Ableton Live, Bitwig, etc.
 
+Here's a video demo:
+
+https://youtu.be/DLFO4dXzKsg
+
 The GUI frontend is developed with [egui](https://github.com/emilk/egui).
 
 The audio engine is written with [glicol_synth](https://github.com/chaosprint/glicol).
